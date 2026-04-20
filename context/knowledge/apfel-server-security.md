@@ -1,6 +1,6 @@
 # apfel Server Security (knobs relevant to Home Assistant)
 
-Only a small slice of apfel's security surface matters for `apfen-home-assistant`. This file covers it; the full matrix is in [`apfel/docs/server-security.md`](../../../apfel/docs/server-security.md).
+Only a small slice of apfel's security surface matters for `apfel-home-assistant`. This file covers it; the full matrix is in [`apfel/docs/server-security.md`](../../../apfel/docs/server-security.md).
 
 ## Default posture
 

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`apfen-home-assistant` is a wrapper around [apfel](https://github.com/Arthur-Ficial/apfel) that connects [Home Assistant](https://www.home-assistant.io/) to Apple Intelligence's on-device foundation model. The goal is to let Home Assistant use Apple's free, local LLM (via apfel's OpenAI-compatible server on macOS) as its conversation/assist backend — no cloud, no API keys, no downloads. Distribution is planned via a Homebrew formula that wraps and configures apfel for the Home Assistant integration path.
+`apfel-home-assistant` is a wrapper around [apfel](https://github.com/Arthur-Ficial/apfel) that connects [Home Assistant](https://www.home-assistant.io/) to Apple Intelligence's on-device foundation model. The goal is to let Home Assistant use Apple's free, local LLM (via apfel's OpenAI-compatible server on macOS) as its conversation/assist backend — no cloud, no API keys, no downloads. Distribution is planned via a Homebrew formula that wraps and configures apfel for the Home Assistant integration path.
 
 ## Build & Run
 

@@ -1,6 +1,6 @@
 # Knowledge Index
 
-Reference material about the external systems `apfen-home-assistant` depends on. These are notes tailored to this project — the authoritative sources live in their upstream repos, and each file links back.
+Reference material about the external systems `apfel-home-assistant` depends on. These are notes tailored to this project — the authoritative sources live in their upstream repos, and each file links back.
 
 ## apfel (on-device LLM backend)
 

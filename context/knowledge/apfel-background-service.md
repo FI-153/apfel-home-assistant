@@ -1,6 +1,6 @@
 # apfel as a Background Service
 
-This is the primary deployment mode `apfen-home-assistant` relies on: apfel running as a long-lived, always-on OpenAI-compatible HTTP server, managed by Homebrew services, so Home Assistant can reach it at a stable local endpoint.
+This is the primary deployment mode `apfel-home-assistant` relies on: apfel running as a long-lived, always-on OpenAI-compatible HTTP server, managed by Homebrew services, so Home Assistant can reach it at a stable local endpoint.
 
 Upstream reference: [`apfel/docs/background-service.md`](../../../apfel/docs/background-service.md).
 
@@ -69,13 +69,13 @@ tail -f /opt/homebrew/var/log/apfel.log
 
 Path is `/usr/local/var/log/apfel.log` on Intel Homebrew prefixes. Both stdout and stderr go to the same file.
 
-## Why this matters for apfen-home-assistant
+## Why this matters for apfel-home-assistant
 
 - **Stable endpoint.** HA can be configured once against `http://127.0.0.1:11434/v1` and never need to restart apfel manually.
 - **Zero-interaction uptime.** The service survives reboots, logins, and crashes. HA voice/assist pipelines get a dependable backend.
 - **No cloud, no API keys, no downloads.** The model is Apple's on-device foundation model, already present on any Apple Silicon Mac with Apple Intelligence.
 - **OpenAI-compatible.** HA's existing `openai_conversation` integration (and generic OpenAI tooling) works unchanged.
-- **Homebrew-native distribution.** Fits the planned delivery path: an `apfen-home-assistant` formula can declare apfel as a dependency, ensuring the service is present and runnable on `brew install`.
+- **Homebrew-native distribution.** Fits the planned delivery path: an `apfel-home-assistant` formula can declare apfel as a dependency, ensuring the service is present and runnable on `brew install`.
 
 ## When NOT to use `brew services`
 

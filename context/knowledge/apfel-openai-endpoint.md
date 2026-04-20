@@ -39,7 +39,7 @@ Always `apple-foundationmodel`. `GET /v1/models` returns exactly this one entry.
 | `logprobs=true`, `n>1`, `stop`, `presence_penalty`, `frequency_penalty` | `400` — rejected explicitly (`n=1` / `logprobs=false` are accepted no-ops) |
 | Multi-modal image messages | `400` — rejected with a clear error |
 
-`apfen-home-assistant` must only invoke Chat Completions and must not rely on embeddings, legacy completions, or the Responses API.
+`apfel-home-assistant` must only invoke Chat Completions and must not rely on embeddings, legacy completions, or the Responses API.
 
 ## Context window
 

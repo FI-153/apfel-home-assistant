@@ -72,6 +72,6 @@ launchctl print gui/$(id -u)/com.arthurficial.apfel
 - **Conflicts with `brew services`.** Don't run both; unload one before starting the other (`brew services stop apfel` before bootstrapping the manual plist).
 - **Log rotation** isn't automatic. If you keep apfel running for months, rotate `/tmp/apfel.log` (or the path you chose) via `newsyslog.d` or a periodic script.
 
-## When `apfen-home-assistant` might ship its own plist
+## When `apfel-home-assistant` might ship its own plist
 
-If the Homebrew formula for `apfen-home-assistant` needs apfel configured with a specific MCP server bundled alongside (e.g. a Home-Assistant-API MCP bridge), generating a dedicated plist — rather than mutating apfel's own service — keeps the two installations independent. That decision is deferred until the architecture lands.
+If the Homebrew formula for `apfel-home-assistant` needs apfel configured with a specific MCP server bundled alongside (e.g. a Home-Assistant-API MCP bridge), generating a dedicated plist — rather than mutating apfel's own service — keeps the two installations independent. That decision is deferred until the architecture lands.
