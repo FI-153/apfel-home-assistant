@@ -11,7 +11,7 @@ conversation backend for [Home Assistant](https://www.home-assistant.io/) via th
 
 ## Requirements
 
-- macOS 26 (Tahoe) or later on Apple Silicon (M1+) — inherited from apfel.
+- macOS 26 (Tahoe) or later on Apple Silicon (M1+).
 - Apple Intelligence enabled in **System Settings → Apple Intelligence & Siri**.
 - [Home Assistant](https://www.home-assistant.io) with the
   [Extended OpenAI Conversation](https://github.com/jekalmin/extended_openai_conversation)
