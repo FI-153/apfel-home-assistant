@@ -314,3 +314,649 @@ The conf format is shell-sourced `KEY=VALUE` with room for additional keys. Exte
 requires: (a) adding `MCP_SERVER=` (and optionally `MCP_TIMEOUT=`) to the conf template, (b)
 making the launcher export `APFEL_MCP` / `APFEL_MCP_TIMEOUT` when set, (c) extending `setup` to
 optionally configure an MCP server path. No breaking changes to users who don't set these keys.
+
+---
+
+## Implementation
+
+> Execution conventions:
+> - Each step is atomic. Check boxes `- [x]` as they complete.
+> - Commit points are marked `COMMIT:` — per project git policy, the assistant asks before
+>   running `git commit` each time.
+> - `$PREFIX` = `$(brew --prefix)` (i.e. `/opt/homebrew` on Apple Silicon).
+> - All paths below are relative to the repo root unless absolute.
+
+### Phase 1 — Source repo scaffolding
+
+#### Task 1.1: Baseline files
+
+**Files:**
+- Create: `.gitignore`
+- Create: `LICENSE` (MIT — matches `wyoming-apple-stt`)
+- Create: `README.md`
+
+- [ ] **Step 1.1.1** — Create `.gitignore`:
+
+```
+.DS_Store
+dist/
+*.tar.gz
+```
+
+- [ ] **Step 1.1.2** — Create `LICENSE` (MIT, copyright "Federico Imberti", year 2026).
+
+- [ ] **Step 1.1.3** — Create `README.md` with a minimal quick-start block:
+
+```markdown
+# apfel-home-assistant
+
+Homebrew formula that runs [apfel](https://github.com/Arthur-Ficial/apfel) pre-configured as a
+conversation backend for [Home Assistant](https://www.home-assistant.io/) via the community
+**OpenAI Extended Conversation** integration.
+
+## Install
+
+    brew install FI-153/tap/apfel-home-assistant
+    apfel-home-assistant setup
+    brew services start apfel-home-assistant
+
+`setup` prints the exact Base URL, API Key, and Model ID to paste into Home Assistant.
+```
+
+Keep the README intentionally short; the design doc in `context/planning/` is the reference.
+
+- [ ] **Step 1.1.4 — COMMIT:** `chore: add LICENSE, README, .gitignore`
+
+---
+
+#### Task 1.2: Launcher (`libexec/apfel-home-assistant-run`)
+
+Written first because the CLI's `setup` ultimately produces the inputs this consumes — easier to
+reason about the conf contract in the narrow launcher than in the broader CLI.
+
+**Files:**
+- Create: `libexec/apfel-home-assistant-run`
+
+- [ ] **Step 1.2.1** — Create `libexec/apfel-home-assistant-run`:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+CONF="${APFEL_HA_CONF:-$(brew --prefix)/etc/apfel-home-assistant.conf}"
+
+if [[ ! -f "$CONF" ]]; then
+  echo "apfel-home-assistant: config not found at $CONF" >&2
+  echo "Run: apfel-home-assistant setup" >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$CONF"
+
+: "${HOST:?HOST missing in $CONF}"
+: "${PORT:?PORT missing in $CONF}"
+: "${TOKEN:?TOKEN missing in $CONF — run: apfel-home-assistant setup}"
+
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+  echo "apfel-home-assistant: PORT=$PORT is not numeric in $CONF" >&2
+  exit 1
+fi
+
+export APFEL_HOST="$HOST"
+export APFEL_PORT="$PORT"
+export APFEL_TOKEN="$TOKEN"
+
+exec apfel --serve
+```
+
+Notes:
+- `APFEL_HA_CONF` env-var override exists purely for `test/` smoke tests to pass in a throwaway
+  conf path; production installs always resolve via `brew --prefix`.
+- `source` on an untrusted file is unsafe in general; here the conf is mode 0600 and written
+  exclusively by our own CLI, so arbitrary-code-execution risk is equivalent to "the user's own
+  shell runs their own shell".
+
+- [ ] **Step 1.2.2** — `chmod 0755 libexec/apfel-home-assistant-run`.
+
+- [ ] **Step 1.2.3** — Manual verification: with no conf present, run the launcher and confirm it
+  exits non-zero with the "config not found" message. With a fake conf having `TOKEN=` empty,
+  confirm it exits with the "TOKEN missing" message.
+
+- [ ] **Step 1.2.4 — COMMIT:** `feat: add launcher that execs apfel with conf-derived env`
+
+---
+
+#### Task 1.3: CLI skeleton (`bin/apfel-home-assistant`)
+
+**Files:**
+- Create: `bin/apfel-home-assistant`
+
+- [ ] **Step 1.3.1** — Create `bin/apfel-home-assistant` with `--help`, `-h`, and subcommand
+  dispatch for `setup`, `show-config`, `rotate-token`. Unknown subcommand prints usage to stderr
+  and exits 2:
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+CONF="${APFEL_HA_CONF:-$(brew --prefix)/etc/apfel-home-assistant.conf}"
+
+usage() {
+  cat <<EOF
+Usage: apfel-home-assistant <command>
+
+Commands:
+  setup           First-time configuration: pick a port, mint a token, print HA block.
+  show-config     Print the Home Assistant integration block from the current config.
+  rotate-token    Generate a new API token and print the new HA block.
+  --help, -h      Show this help.
+
+Config file: $CONF
+EOF
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  setup)        shift; cmd_setup "$@" ;;
+  show-config)  shift; cmd_show_config "$@" ;;
+  rotate-token) shift; cmd_rotate_token "$@" ;;
+  -h|--help|"") usage; exit 0 ;;
+  *)            echo "unknown command: $cmd" >&2; usage >&2; exit 2 ;;
+esac
+```
+
+(The `cmd_*` functions are added by subsequent tasks. The case statement above is the final
+shape; later tasks only add function definitions above the case.)
+
+- [ ] **Step 1.3.2** — `chmod 0755 bin/apfel-home-assistant`.
+
+- [ ] **Step 1.3.3** — Verify `bin/apfel-home-assistant --help` prints usage and exits 0.
+  Verify `bin/apfel-home-assistant bogus` prints error + usage on stderr and exits 2.
+
+  > At this point `cmd_setup` / `cmd_show_config` / `cmd_rotate_token` don't exist — invoking
+  > those subcommands would fail with "command not found". That's expected; they land in the
+  > next tasks. Only `--help` and the unknown-command path are exercised here.
+
+- [ ] **Step 1.3.4 — COMMIT:** `feat: add apfel-home-assistant CLI skeleton with subcommand dispatch`
+
+---
+
+#### Task 1.4: `show-config` subcommand
+
+Implemented before `setup` because `setup` ends by calling into `show-config`'s printer, and
+having it exist first makes the `setup` implementation a straight compose.
+
+**Files:**
+- Modify: `bin/apfel-home-assistant`
+
+- [ ] **Step 1.4.1** — Insert above the `case` block in `bin/apfel-home-assistant`:
+
+```bash
+# Print the HA integration block using values from the config file.
+cmd_show_config() {
+  if [[ ! -f "$CONF" ]]; then
+    echo "apfel-home-assistant: no config at $CONF" >&2
+    echo "Run: apfel-home-assistant setup" >&2
+    exit 1
+  fi
+  # shellcheck source=/dev/null
+  source "$CONF"
+  : "${HOST:?HOST missing in $CONF}"
+  : "${PORT:?PORT missing in $CONF}"
+  : "${TOKEN:?TOKEN missing in $CONF — run: apfel-home-assistant setup}"
+
+  local lan_ip
+  lan_ip="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+  if [[ -z "$lan_ip" ]]; then
+    lan_ip="<your-mac-lan-ip>"
+  fi
+
+  cat <<EOF
+Home Assistant — OpenAI Extended Conversation integration:
+
+  Base URL:  http://$lan_ip:$PORT/v1
+  API Key:   $TOKEN
+  Model:     apple-foundationmodel
+
+After changing config, restart the service:
+  brew services restart apfel-home-assistant
+EOF
+}
+```
+
+- [ ] **Step 1.4.2** — Manual verification: write a fake conf (`HOST=0.0.0.0`, `PORT=11435`,
+  `TOKEN=deadbeef`) to a temp path, `APFEL_HA_CONF=/tmp/fake.conf bin/apfel-home-assistant show-config`,
+  confirm output contains `http://<ip-or-placeholder>:11435/v1`, `deadbeef`, and
+  `apple-foundationmodel`.
+
+- [ ] **Step 1.4.3 — COMMIT:** `feat: add show-config subcommand`
+
+---
+
+#### Task 1.5: `setup` subcommand
+
+**Files:**
+- Modify: `bin/apfel-home-assistant`
+
+- [ ] **Step 1.5.1** — Add helper functions above the `case` block in `bin/apfel-home-assistant`:
+
+```bash
+# Return 0 if the TCP port is free (nobody listening), 1 otherwise.
+port_is_free() {
+  local port="$1"
+  ! lsof -iTCP:"$port" -sTCP:LISTEN -nP -t >/dev/null 2>&1
+}
+
+# Echo the first free port in the preferred list, or exit non-zero if none free.
+pick_port() {
+  for p in 11434 11435 11436 11437; do
+    if port_is_free "$p"; then
+      echo "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
+cmd_setup() {
+  local force=0
+  for arg in "$@"; do
+    case "$arg" in
+      --force|-f) force=1 ;;
+      *) echo "unknown flag: $arg" >&2; return 2 ;;
+    esac
+  done
+
+  if [[ -f "$CONF" ]]; then
+    # shellcheck source=/dev/null
+    local existing_token=""
+    existing_token="$(grep -E '^TOKEN=' "$CONF" | cut -d= -f2- || true)"
+    if [[ -n "$existing_token" && $force -ne 1 ]]; then
+      echo "apfel-home-assistant: $CONF already has a token." >&2
+      echo "Use 'apfel-home-assistant show-config' to view it," >&2
+      echo "or re-run with --force to overwrite." >&2
+      return 1
+    fi
+  fi
+
+  local port
+  if ! port="$(pick_port)"; then
+    echo "apfel-home-assistant: ports 11434–11437 are all in use." >&2
+    echo "Edit PORT in $CONF manually, then run: apfel-home-assistant show-config" >&2
+    return 1
+  fi
+  echo "→ Selected port: $port"
+
+  echo "→ Generating token..."
+  local token
+  token="$(openssl rand -hex 32)"
+
+  local conf_dir
+  conf_dir="$(dirname "$CONF")"
+  mkdir -p "$conf_dir"
+
+  umask 077
+  cat > "$CONF" <<EOF
+# apfel-home-assistant configuration
+# Edit manually only if you know what you're doing.
+# Normal workflow: \`apfel-home-assistant setup\` / \`rotate-token\`.
+# Restart after editing: \`brew services restart apfel-home-assistant\`.
+
+HOST=0.0.0.0
+PORT=$port
+TOKEN=$token
+EOF
+  chmod 0600 "$CONF"
+
+  echo "→ Wrote $CONF (mode 0600)"
+  echo
+  echo "Next steps:"
+  echo "  1. Start the server:"
+  echo "       brew services start apfel-home-assistant"
+  echo
+  echo "  2. In Home Assistant, add the \"OpenAI Extended Conversation\" integration with:"
+  echo
+  cmd_show_config | sed -n '/^  Base URL:/,/^  Model:/p' | sed 's/^/    /'
+}
+```
+
+Note: the second-half block reuses `show-config`'s output to print only the three HA-integration
+lines; the full `show-config` output is slightly more verbose (includes the restart reminder),
+and `setup` adds its own "Next steps" framing.
+
+- [ ] **Step 1.5.2** — Manual verification on a throwaway conf path:
+
+```bash
+APFEL_HA_CONF=/tmp/aha-test.conf bin/apfel-home-assistant setup
+cat /tmp/aha-test.conf    # expect HOST=0.0.0.0, numeric PORT, 64-hex TOKEN
+stat -f "%p" /tmp/aha-test.conf   # last three digits: 600
+```
+
+Re-run without `--force`: expect refusal with "already has a token". Re-run with `--force`:
+expect a fresh token. Delete the file when done.
+
+- [ ] **Step 1.5.3 — COMMIT:** `feat: add setup subcommand with port probe and token mint`
+
+---
+
+#### Task 1.6: `rotate-token` subcommand
+
+**Files:**
+- Modify: `bin/apfel-home-assistant`
+
+- [ ] **Step 1.6.1** — Insert above the `case` block in `bin/apfel-home-assistant`:
+
+```bash
+cmd_rotate_token() {
+  if [[ ! -f "$CONF" ]]; then
+    echo "apfel-home-assistant: no config at $CONF" >&2
+    echo "Run: apfel-home-assistant setup" >&2
+    return 1
+  fi
+
+  local new_token
+  new_token="$(openssl rand -hex 32)"
+
+  # Rewrite TOKEN line, preserving the rest of the file.
+  local tmp
+  tmp="$(mktemp)"
+  awk -v t="$new_token" '
+    /^TOKEN=/ { print "TOKEN=" t; next }
+    { print }
+  ' "$CONF" > "$tmp"
+  chmod 0600 "$tmp"
+  mv "$tmp" "$CONF"
+
+  echo "→ Token rotated. New config:"
+  echo
+  cmd_show_config
+  echo
+  echo "Restart the service to pick up the new token:"
+  echo "  brew services restart apfel-home-assistant"
+}
+```
+
+- [ ] **Step 1.6.2** — Manual verification: after a `setup` into a throwaway conf, run
+  `rotate-token`, diff the conf before/after, confirm only the `TOKEN=` line changed and the new
+  value is a fresh 64-hex string.
+
+- [ ] **Step 1.6.3 — COMMIT:** `feat: add rotate-token subcommand`
+
+---
+
+#### Task 1.7: Smoke-test script
+
+**Files:**
+- Create: `test/smoke.sh`
+
+- [ ] **Step 1.7.1** — Create `test/smoke.sh`:
+
+```bash
+#!/bin/bash
+# Lightweight end-to-end check for the CLI + launcher, no Homebrew involved.
+# Does NOT start apfel; stops at the point the launcher would exec it.
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+export APFEL_HA_CONF="$TMP/conf"
+
+echo "== help"
+"$REPO_ROOT/bin/apfel-home-assistant" --help | grep -q "Usage: apfel-home-assistant"
+
+echo "== setup"
+"$REPO_ROOT/bin/apfel-home-assistant" setup >/dev/null
+grep -q '^HOST=0.0.0.0$' "$APFEL_HA_CONF"
+grep -qE '^PORT=[0-9]+$' "$APFEL_HA_CONF"
+grep -qE '^TOKEN=[0-9a-f]{64}$' "$APFEL_HA_CONF"
+[[ "$(stat -f "%Lp" "$APFEL_HA_CONF")" = "600" ]]
+
+echo "== setup refuses to overwrite"
+if "$REPO_ROOT/bin/apfel-home-assistant" setup 2>/dev/null; then
+  echo "FAIL: setup should refuse without --force" >&2
+  exit 1
+fi
+
+echo "== setup --force overwrites"
+OLD_TOKEN="$(grep '^TOKEN=' "$APFEL_HA_CONF" | cut -d= -f2)"
+"$REPO_ROOT/bin/apfel-home-assistant" setup --force >/dev/null
+NEW_TOKEN="$(grep '^TOKEN=' "$APFEL_HA_CONF" | cut -d= -f2)"
+[[ "$OLD_TOKEN" != "$NEW_TOKEN" ]]
+
+echo "== show-config"
+"$REPO_ROOT/bin/apfel-home-assistant" show-config | grep -q "apple-foundationmodel"
+
+echo "== rotate-token"
+BEFORE="$(grep '^TOKEN=' "$APFEL_HA_CONF")"
+"$REPO_ROOT/bin/apfel-home-assistant" rotate-token >/dev/null
+AFTER="$(grep '^TOKEN=' "$APFEL_HA_CONF")"
+[[ "$BEFORE" != "$AFTER" ]]
+
+echo "== launcher rejects missing conf"
+rm "$APFEL_HA_CONF"
+if "$REPO_ROOT/libexec/apfel-home-assistant-run" 2>/dev/null; then
+  echo "FAIL: launcher should reject missing conf" >&2
+  exit 1
+fi
+
+echo "== all smoke checks passed"
+```
+
+- [ ] **Step 1.7.2** — `chmod 0755 test/smoke.sh`.
+
+- [ ] **Step 1.7.3** — Run `./test/smoke.sh` and confirm "all smoke checks passed".
+
+- [ ] **Step 1.7.4 — COMMIT:** `test: add end-to-end smoke script for CLI + launcher`
+
+---
+
+### Phase 2 — Release packaging
+
+#### Task 2.1: `Makefile` for release tarballs
+
+**Files:**
+- Create: `Makefile`
+
+- [ ] **Step 2.1.1** — Create `Makefile`:
+
+```make
+NAME    := apfel-home-assistant
+VERSION := $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' || echo 0.0.0)
+DIST    := dist
+TARBALL := $(DIST)/$(NAME)-$(VERSION).tar.gz
+
+.PHONY: tarball sha256 clean test
+
+tarball:
+	@mkdir -p $(DIST)
+	git archive --format=tar.gz --prefix=$(NAME)-$(VERSION)/ -o $(TARBALL) HEAD
+	@echo "built $(TARBALL)"
+
+sha256: tarball
+	@shasum -a 256 $(TARBALL)
+
+test:
+	./test/smoke.sh
+
+clean:
+	rm -rf $(DIST)
+```
+
+- [ ] **Step 2.1.2** — Verify: `make test` passes; `make tarball` produces a `.tar.gz` under
+  `dist/`; `make sha256` prints a 64-hex digest.
+
+- [ ] **Step 2.1.3 — COMMIT:** `chore: add Makefile for tarball + sha256`
+
+---
+
+#### Task 2.2: Tag v0.1.0 and cut local tarball
+
+- [ ] **Step 2.2.1** — `git tag -a v0.1.0 -m "v0.1.0 — initial release"` (ask user to confirm
+  before tagging; no remote yet, so no push).
+
+- [ ] **Step 2.2.2** — `make sha256`. Record the digest as `V0_1_0_SHA256` — the formula needs it.
+
+---
+
+### Phase 3 — Homebrew formula
+
+> All paths in this phase are in the sibling repo `../homebrew-tap/`.
+
+#### Task 3.1: Formula file
+
+**Files:**
+- Create: `../homebrew-tap/Formula/apfel-home-assistant.rb`
+
+- [ ] **Step 3.1.1** — Create the formula, mirroring `wyoming-apple-stt.rb`'s structure:
+
+```ruby
+class ApfelHomeAssistant < Formula
+  desc "Run apfel pre-configured as a Home Assistant conversation backend"
+  homepage "https://github.com/FI-153/apfel-home-assistant"
+  url "https://github.com/FI-153/apfel-home-assistant/releases/download/v0.1.0/apfel-home-assistant-0.1.0.tar.gz"
+  version "0.1.0"
+  sha256 "REPLACE_WITH_V0_1_0_SHA256"
+  license "MIT"
+
+  depends_on "arthur-ficial/tap/apfel"
+  depends_on macos: :tahoe
+
+  def install
+    bin.install "bin/apfel-home-assistant"
+    libexec.install "libexec/apfel-home-assistant-run"
+    chmod 0755, libexec/"apfel-home-assistant-run"
+
+    conf = etc/"apfel-home-assistant.conf"
+    unless conf.exist?
+      conf.write <<~EOS
+        # apfel-home-assistant configuration
+        # Edit manually only if you know what you're doing.
+        # Normal workflow: `apfel-home-assistant setup` / `rotate-token`.
+        # Restart after editing: `brew services restart apfel-home-assistant`.
+
+        HOST=0.0.0.0
+        PORT=11434
+        TOKEN=
+      EOS
+      chmod 0600, conf
+    end
+  end
+
+  service do
+    run [opt_libexec/"apfel-home-assistant-run"]
+    keep_alive true
+    log_path var/"log/apfel-home-assistant.log"
+    error_log_path var/"log/apfel-home-assistant.log"
+  end
+
+  test do
+    assert_match "Usage: apfel-home-assistant",
+                 shell_output("#{bin}/apfel-home-assistant --help")
+    assert_predicate libexec/"apfel-home-assistant-run", :executable?
+  end
+end
+```
+
+- [ ] **Step 3.1.2** — Replace `REPLACE_WITH_V0_1_0_SHA256` with the digest from step 2.2.2.
+
+- [ ] **Step 3.1.3 — COMMIT (in `homebrew-tap`):** `feat: add apfel-home-assistant formula`
+
+---
+
+#### Task 3.2: Install from local source + verify
+
+Until the source release is pushed to GitHub, the formula's `url` points at a nonexistent
+tarball. Bypass that with `HOMEBREW_NO_INSTALL_FROM_API=1` and a local tap install.
+
+- [ ] **Step 3.2.1** — From anywhere: `brew tap FI-153/tap ~/GitHub/homebrew-tap` (points the
+  `FI-153/tap` name at the local checkout).
+
+- [ ] **Step 3.2.2** — `brew install --build-from-source FI-153/tap/apfel-home-assistant`.
+
+  If the `url`/`sha256` aren't yet reachable (no GitHub release published), create a local
+  tarball at the expected path via `make tarball` and set `HOMEBREW_ARTIFACT_DOMAIN` to point
+  at a `file://` URL for the same path — or just edit the formula's `url` to a local `file://`
+  for this verification step only, then revert before publishing.
+
+- [ ] **Step 3.2.3** — `brew audit --strict apfel-home-assistant`. Fix any issues reported.
+  Expected common fixes: `desc` wording, license SPDX, homepage scheme.
+
+- [ ] **Step 3.2.4** — `brew test apfel-home-assistant`. Expected: `Usage:` assertion passes,
+  launcher executable assertion passes.
+
+---
+
+#### Task 3.3: End-to-end real run
+
+- [ ] **Step 3.3.1** — `apfel-home-assistant setup`. Confirm: terminal shows a port, token,
+  Base URL with a real LAN IP, and the model ID. Confirm `$(brew --prefix)/etc/apfel-home-assistant.conf`
+  exists with mode 0600.
+
+- [ ] **Step 3.3.2** — `brew services start apfel-home-assistant`. Confirm
+  `brew services info apfel-home-assistant` shows status `started`.
+
+- [ ] **Step 3.3.3** — Smoke the endpoint:
+
+```bash
+source "$(brew --prefix)/etc/apfel-home-assistant.conf"
+curl -sf "http://127.0.0.1:${PORT}/health" | grep -q '"status":"ok"'
+curl -sf "http://127.0.0.1:${PORT}/v1/models" \
+  -H "Authorization: Bearer ${TOKEN}" | grep -q "apple-foundationmodel"
+```
+
+Both should succeed. `/v1/models` without the token should return `401`.
+
+- [ ] **Step 3.3.4** — `tail -f $(brew --prefix)/var/log/apfel-home-assistant.log` shows apfel's
+  normal startup line and zero restart loops.
+
+- [ ] **Step 3.3.5** — In Home Assistant (on the separate device), add the **OpenAI Extended
+  Conversation** integration with the Base URL, API Key, and Model from step 3.3.1. Send a test
+  prompt. Confirm a response comes back.
+
+- [ ] **Step 3.3.6** — `brew services stop apfel-home-assistant`; confirm clean stop.
+
+---
+
+#### Task 3.4: Publish
+
+- [ ] **Step 3.4.1** — Create a GitHub repo `FI-153/apfel-home-assistant`, push `main` + `v0.1.0`
+  tag (user runs this step; assistant does not push autonomously).
+
+- [ ] **Step 3.4.2** — Attach `dist/apfel-home-assistant-0.1.0.tar.gz` as the v0.1.0 release
+  asset on GitHub. Verify the `url` in the formula resolves.
+
+- [ ] **Step 3.4.3** — If the sha256 of the uploaded asset differs from the local tarball's
+  (shouldn't, but verify), update the formula and re-commit in `homebrew-tap`.
+
+- [ ] **Step 3.4.4** — Push `homebrew-tap` changes.
+
+- [ ] **Step 3.4.5** — Clean-machine install test (optional but valuable): on a second Mac, or
+  after `brew uninstall apfel-home-assistant && brew untap FI-153/tap`, run:
+
+```bash
+brew install FI-153/tap/apfel-home-assistant
+apfel-home-assistant setup
+brew services start apfel-home-assistant
+```
+
+Confirm the same end-to-end path works against the real published tap + release.
+
+---
+
+### Self-review against the spec
+
+- **Config-only vs wrapper+config decision (Section 1, Q1=B):** Task 1.3 onward builds the CLI wrapper. ✓
+- **Token lifecycle (Q2=A, setup-time):** Task 1.5. ✓
+- **Deployment (Q3=C, LAN + token, origin check on):** launcher (Task 1.2) exports `APFEL_HOST=0.0.0.0` + `APFEL_TOKEN` and passes no `--no-origin-check`. ✓
+- **Lifecycle (Q4=A, pure brew services):** Formula `service do` block (Task 3.1), no launchctl calls from the CLI. ✓
+- **Port conflict handling:** Port probe in Task 1.5. ✓
+- **setup prints token + IP + model:** Task 1.5 delegates to `show-config`, which is fully implemented in Task 1.4. ✓
+- **rotate-token / show-config subcommands:** Tasks 1.6 and 1.4. ✓
+- **Security: 0600 conf, token not masked:** Task 1.5 `umask 077` + `chmod 0600`; Task 1.4 prints unmasked token. ✓
+- **wyoming-apple-stt formula pattern:** Task 3.1 follows it structurally. ✓
+- **MCP deferral:** No MCP tasks — matches "deferred" in the design. ✓

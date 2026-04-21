@@ -1,0 +1,165 @@
+#!/bin/bash
+set -euo pipefail
+
+CONF="${APFEL_HA_CONF:-$(brew --prefix)/etc/apfel-home-assistant.conf}"
+
+usage() {
+  cat <<EOF
+Usage: apfel-home-assistant <command>
+
+Commands:
+  setup           First-time configuration: pick a port, mint a token, print HA block.
+  show-config     Print the Home Assistant integration block from the current config.
+  rotate-token    Generate a new API token and print the new HA block.
+  --help, -h      Show this help.
+
+Config file: $CONF
+EOF
+}
+
+require_conf() {
+  if [[ ! -f "$CONF" ]]; then
+    echo "apfel-home-assistant: no config at $CONF" >&2
+    echo "Run: apfel-home-assistant setup" >&2
+    return 1
+  fi
+}
+
+get_lan_ip() {
+  local ip
+  ip="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+  [[ -z "$ip" ]] && ip="<your-mac-lan-ip>"
+  echo "$ip"
+}
+
+cmd_show_config() {
+  require_conf
+  # shellcheck source=/dev/null
+  source "$CONF"
+  : "${HOST:?HOST missing in $CONF}"
+  : "${PORT:?PORT missing in $CONF}"
+  : "${TOKEN:?TOKEN missing in $CONF — run: apfel-home-assistant setup}"
+
+  local lan_ip
+  lan_ip="$(get_lan_ip)"
+  cat <<EOF
+Home Assistant — OpenAI Extended Conversation integration:
+
+  Base URL:  http://$lan_ip:$PORT/v1
+  API Key:   $TOKEN
+  Model:     apple-foundationmodel
+
+After changing config, restart the service:
+  brew services restart apfel-home-assistant
+EOF
+}
+
+port_is_free() {
+  local port="$1"
+  ! lsof -iTCP:"$port" -sTCP:LISTEN -nP -t >/dev/null 2>&1
+}
+
+pick_port() {
+  for p in 11434 11435 11436 11437; do
+    if port_is_free "$p"; then
+      echo "$p"
+      return 0
+    fi
+  done
+  return 1
+}
+
+cmd_setup() {
+  local force=0
+  for arg in "$@"; do
+    case "$arg" in
+      --force|-f) force=1 ;;
+      *) echo "unknown flag: $arg" >&2; return 2 ;;
+    esac
+  done
+
+  if [[ -f "$CONF" ]]; then
+    local existing_token
+    existing_token="$(awk -F= '/^TOKEN=/{print $2}' "$CONF")"
+    if [[ -n "$existing_token" && $force -ne 1 ]]; then
+      echo "apfel-home-assistant: $CONF already has a token." >&2
+      echo "Use 'apfel-home-assistant show-config' to view it," >&2
+      echo "or re-run with --force to overwrite." >&2
+      return 1
+    fi
+  fi
+
+  local port
+  if ! port="$(pick_port)"; then
+    echo "apfel-home-assistant: ports 11434–11437 are all in use." >&2
+    echo "Edit PORT in $CONF manually, then run: apfel-home-assistant show-config" >&2
+    return 1
+  fi
+  echo "→ Selected port: $port"
+
+  echo "→ Generating token..."
+  local token
+  token="$(openssl rand -hex 32)"
+
+  mkdir -p "$(dirname "$CONF")"
+  umask 077
+  cat > "$CONF" <<EOF
+# apfel-home-assistant configuration
+# Edit manually only if you know what you're doing.
+# Normal workflow: \`apfel-home-assistant setup\` / \`rotate-token\`.
+# Restart after editing: \`brew services restart apfel-home-assistant\`.
+
+HOST=0.0.0.0
+PORT=$port
+TOKEN=$token
+EOF
+  chmod 0600 "$CONF"
+
+  local lan_ip
+  lan_ip="$(get_lan_ip)"
+  cat <<EOF
+→ Wrote $CONF (mode 0600)
+
+Next steps:
+  1. Start the server:
+       brew services start apfel-home-assistant
+
+  2. In Home Assistant, add the "OpenAI Extended Conversation" integration with:
+
+    Base URL:  http://$lan_ip:$port/v1
+    API Key:   $token
+    Model:     apple-foundationmodel
+EOF
+}
+
+cmd_rotate_token() {
+  require_conf
+
+  local new_token
+  new_token="$(openssl rand -hex 32)"
+
+  local tmp
+  tmp="$(mktemp)"
+  awk -v t="$new_token" '
+    /^TOKEN=/ { print "TOKEN=" t; next }
+    { print }
+  ' "$CONF" > "$tmp"
+  chmod 0600 "$tmp"
+  mv "$tmp" "$CONF"
+
+  echo "→ Token rotated. New config:"
+  echo
+  cmd_show_config
+  echo
+  echo "Restart the service to pick up the new token:"
+  echo "  brew services restart apfel-home-assistant"
+}
+
+cmd="${1:-}"
+case "$cmd" in
+  setup)        shift; cmd_setup "$@" ;;
+  show-config)  shift; cmd_show_config "$@" ;;
+  rotate-token) shift; cmd_rotate_token "$@" ;;
+  -h|--help|"") usage; exit 0 ;;
+  *)            echo "unknown command: $cmd" >&2; usage >&2; exit 2 ;;
+esac

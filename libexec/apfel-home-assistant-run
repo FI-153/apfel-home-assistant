@@ -1,0 +1,28 @@
+#!/bin/bash
+set -euo pipefail
+
+CONF="${APFEL_HA_CONF:-$(brew --prefix)/etc/apfel-home-assistant.conf}"
+
+if [[ ! -f "$CONF" ]]; then
+  echo "apfel-home-assistant: config not found at $CONF" >&2
+  echo "Run: apfel-home-assistant setup" >&2
+  exit 1
+fi
+
+# shellcheck source=/dev/null
+source "$CONF"
+
+: "${HOST:?HOST missing in $CONF}"
+: "${PORT:?PORT missing in $CONF}"
+: "${TOKEN:?TOKEN missing in $CONF — run: apfel-home-assistant setup}"
+
+if ! [[ "$PORT" =~ ^[0-9]+$ ]]; then
+  echo "apfel-home-assistant: PORT=$PORT is not numeric in $CONF" >&2
+  exit 1
+fi
+
+export APFEL_HOST="$HOST"
+export APFEL_PORT="$PORT"
+export APFEL_TOKEN="$TOKEN"
+
+exec apfel --serve
