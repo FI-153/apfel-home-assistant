@@ -7,6 +7,8 @@ Homebrew wrapper around [apfel](https://github.com/Arthur-Ficial/apfel), pre-con
 conversation backend for [Home Assistant](https://www.home-assistant.io/) via the community
 [**Extended OpenAI Conversation**](https://github.com/jekalmin/extended_openai_conversation) integration.
 
+<img width="1326" height="949" alt="Screen Shot 2026-04-21 at 10 00 19 PM" src="https://github.com/user-attachments/assets/83fd5236-dbbe-4473-b14f-e44b63e336bc" />
+
 ## Requirements
 
 - macOS 26 (Tahoe) or later on Apple Silicon (M1+) — inherited from apfel.
