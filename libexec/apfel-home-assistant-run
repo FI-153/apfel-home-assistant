@@ -25,4 +25,4 @@ export APFEL_HOST="$HOST"
 export APFEL_PORT="$PORT"
 export APFEL_TOKEN="$TOKEN"
 
-exec apfel --serve
+exec apfel --serve --permissive

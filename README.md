@@ -21,6 +21,10 @@ The model runs fully on-device through Apple's
 [**FoundationModels**](https://developer.apple.com/documentation/foundationmodels) framework —
 no network calls leave your Mac, and there are no usage limits.
 
+> [!NOTE]
+> The server runs with apfel's `--permissive` flag so Apple's content guardrails are relaxed —
+> smart-home commands and routine household prompts are less likely to be refused.
+
 ## Install (Homebrew) 🍺
 
 ```bash
