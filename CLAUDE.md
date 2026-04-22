@@ -36,6 +36,19 @@ TODO — high-level architecture to be written once the wrapper design is finali
 
 TODO — project-specific conventions will be added as the codebase grows.
 
+## Release Process
+
+Releases are cut by pushing a `v*` tag. The `.github/workflows/release.yml` workflow
+handles everything from there — no manual `gh release create`, no hand-edit of the
+tap.
+
+### Cutting a release
+To release a new version and trigger the CI pipeline you must tag the release and push to origin:
+```bash
+git tag v<X.Y.Z>
+git push origin v<X.Y.Z>
+```
+
 ## Planning Workflow
 
 Whenever the user asks Claude to plan a task, Claude **must** write the plan as a `.md` file inside
