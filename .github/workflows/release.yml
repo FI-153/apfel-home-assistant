@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: macos-26
+    permissions:
+      contents: write  # needed to create the GitHub release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        run: ./test/smoke.sh
+
+      - name: Build release tarball
+        id: tarball
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          make tarball
+          TARBALL="dist/apfel-home-assistant-${VERSION}.tar.gz"
+          SHA="$(shasum -a 256 "${TARBALL}" | awk '{print $1}')"
+          echo "path=${TARBALL}" >> "$GITHUB_OUTPUT"
+          echo "sha256=${SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Render formula
+        id: render
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          SHA256: ${{ steps.tarball.outputs.sha256 }}
+        run: |
+          set -euo pipefail
+          URL="https://github.com/FI-153/apfel-home-assistant/releases/download/v${VERSION}/apfel-home-assistant-${VERSION}.tar.gz"
+          echo "url=${URL}" >> "$GITHUB_OUTPUT"
+
+          URL="${URL}" python3 - <<'PY'
+          import os
+          from pathlib import Path
+          tpl = Path("packaging/formula.rb.template").read_text()
+          rendered = (
+              tpl
+              .replace("{{URL}}", os.environ["URL"])
+              .replace("{{SHA256}}", os.environ["SHA256"])
+          )
+          Path("apfel-home-assistant.rb").write_text(rendered)
+          PY
+
+      - name: Audit rendered formula
+        run: |
+          set -euo pipefail
+          # Stage the rendered formula inside a temporary local tap so `brew audit`
+          # can evaluate it with a valid tap path.
+          TAP_DIR="$(brew --repository)/Library/Taps/fi-153/homebrew-ci-audit"
+          mkdir -p "${TAP_DIR}/Formula"
+          cp apfel-home-assistant.rb "${TAP_DIR}/Formula/apfel-home-assistant.rb"
+          brew audit --strict --formula fi-153/ci-audit/apfel-home-assistant
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.tarball.outputs.path }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --generate-notes
+
+      - name: Push formula to tap
+        env:
+          TAP_PUSH_TOKEN: ${{ secrets.TAP_PUSH_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git clone "https://x-access-token:${TAP_PUSH_TOKEN}@github.com/FI-153/homebrew-tap.git" tap
+          mkdir -p tap/Formula
+          mv apfel-home-assistant.rb tap/Formula/apfel-home-assistant.rb
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Formula/apfel-home-assistant.rb
+          git commit -m "apfel-home-assistant ${VERSION}"
+          git push origin HEAD:main

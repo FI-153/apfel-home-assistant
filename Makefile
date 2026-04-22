@@ -1,5 +1,5 @@
 NAME    := apfel-home-assistant
-VERSION := $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),0.0.0)
+VERSION ?= $(or $(shell git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//'),0.0.0)
 DIST    := dist
 TARBALL := $(DIST)/$(NAME)-$(VERSION).tar.gz
 
