@@ -43,8 +43,11 @@ handles everything from there — no manual `gh release create`, no hand-edit of
 tap.
 
 ### Cutting a release
-To release a new version and trigger the CI pipeline you must tag the release and push to origin:
+To release a new version and trigger the CI pipeline you must tag the release from `main` and
+push to origin. The tag must point at a commit reachable from `main` — CI verifies this and
+refuses to release otherwise.
 ```bash
+git checkout main && git pull
 git tag v<X.Y.Z>
 git push origin v<X.Y.Z>
 ```
