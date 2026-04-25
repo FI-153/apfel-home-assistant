@@ -36,7 +36,12 @@ NEW_TOKEN="$(token_of "$APFEL_HA_CONF")"
 [[ "$OLD_TOKEN" != "$NEW_TOKEN" ]]
 
 echo "== show-config"
-"$REPO_ROOT/bin/apfel-home-assistant" show-config | grep -q "apple-foundationmodel"
+SHOW_CONFIG_OUT="$("$REPO_ROOT/bin/apfel-home-assistant" show-config)"
+echo "$SHOW_CONFIG_OUT" | grep -q "apple-foundationmodel"
+echo "$SHOW_CONFIG_OUT" | grep -q "Apfel AI" \
+  || { echo "FAIL: show-config output missing 'Apfel AI'" >&2; exit 1; }
+echo "$SHOW_CONFIG_OUT" | grep -q "https://github.com/FI-153/apfel-home-assistant-integration" \
+  || { echo "FAIL: show-config output missing HACS URL" >&2; exit 1; }
 
 echo "== rotate-token"
 BEFORE="$(token_of "$APFEL_HA_CONF")"

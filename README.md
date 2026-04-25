@@ -4,8 +4,8 @@ On-device LLM for Home Assistant, powered by Apple Intelligence's foundation mod
 Every token stays on your Mac: no cloud, no API key to pay for, no model downloads, full privacy.
 
 Homebrew wrapper around [apfel](https://github.com/Arthur-Ficial/apfel), pre-configured as a
-conversation backend for [Home Assistant](https://www.home-assistant.io/) via the community
-[**Extended OpenAI Conversation**](https://github.com/jekalmin/extended_openai_conversation) integration.
+conversation and AI Task backend for [Home Assistant](https://www.home-assistant.io/) via the
+[**Apfel AI**](https://github.com/FI-153/apfel-home-assistant-integration) custom integration.
 
 <img width="1326" height="949" alt="Screen Shot 2026-04-21 at 10 00 19 PM" src="https://github.com/user-attachments/assets/83fd5236-dbbe-4473-b14f-e44b63e336bc" />
 
@@ -13,9 +13,8 @@ conversation backend for [Home Assistant](https://www.home-assistant.io/) via th
 
 - macOS 26 (Tahoe) or later on Apple Silicon (M1+).
 - Apple Intelligence enabled in **System Settings → Apple Intelligence & Siri**.
-- [Home Assistant](https://www.home-assistant.io) with the
-  [Extended OpenAI Conversation](https://github.com/jekalmin/extended_openai_conversation)
-  custom integration (installable via [HACS](https://hacs.xyz/)).
+- [Home Assistant](https://www.home-assistant.io) with
+  [HACS](https://hacs.xyz/) installed (for the Apfel AI custom integration).
 
 The model runs fully on-device through Apple's
 [**FoundationModels**](https://developer.apple.com/documentation/foundationmodels) framework —
@@ -40,27 +39,48 @@ brew services start apfel-home-assistant
 
 ## Connect to Home Assistant 🏠
 
+### Apfel AI (recommended)
+
+Supports both conversation and the AI Task platform — the richest integration path.
+
+1. **Install the custom integration via HACS.**
+   In HACS → Integrations → ⋮ → **Custom repositories**, add:
+   - **URL:** `https://github.com/FI-153/apfel-home-assistant-integration`
+   - **Category:** Integration
+
+   Then search for "Apfel AI" and install it, and restart Home Assistant.
+
+2. **Add the integration.** Go to **Settings → Devices & services → Add integration →
+   Apfel AI**, then paste the values printed by `setup` (or `show-config`):
+
+   - **Base URL** — `http://<your-mac-lan-ip>:<port>/v1`
+   - **API Key** — the token minted by `setup`
+   - **Model** — `apple-foundationmodel`
+
+3. **(Optional) Enable device control.** In the integration options, select
+   **"Home Assistant"** (Assist) under **LLM API** to let the model control devices.
+
+4. **Wire it into a voice pipeline (optional).** Go to **Settings → Voice assistants**,
+   pick a pipeline, and set its **Conversation agent** to the Apfel AI agent.
+
+### Extended OpenAI Conversation (legacy)
+
+Conversation only — does not support the AI Task platform. Use this if you prefer an
+integration that does not require a HACS custom repository.
+
 1. **Add the integration.** In Home Assistant, open **Settings → Devices & services →
-   Add integration → Extended OpenAI Conversation**, then paste the values that `setup`
-   printed:
+   Add integration → Extended OpenAI Conversation** and paste the values from `setup`:
 
    - **Base URL** — `http://<your-mac-lan-ip>:<port>/v1`
    - **API Key** — the token minted by `setup`
 
-2. **Point it at the local model.** On the integration's card, click the gear icon next to
-   the conversation agent entry and:
+2. **Point it at the local model.** On the integration card, click the gear icon and:
 
    - Set **chat_model** to `apple-foundationmodel`.
    - Clear the default **Functions** field and enter `[]`.
    - Disable **Use Tools**.
-   - Adjust the Context Threshold to 4000
+   - Adjust the Context Threshold to 4000.
    - Submit.
-
-3. **Test it.** Open the conversation agent's entity and use the **Assist** tab to send
-   a prompt — the reply should come back from the local model.
-
-4. **Wire it into a voice pipeline (optional).** Go to **Settings → Voice assistants**,
-   pick a pipeline, and set its **Conversation agent** to the one you just configured.
 
 > [!IMPORTANT]
 > The Mac and Home Assistant must be on the same LAN, or Home Assistant must otherwise

@@ -43,7 +43,21 @@ cmd_show_config() {
   local lan_ip
   lan_ip="$(get_lan_ip)"
   cat <<EOF
-Home Assistant — OpenAI Extended Conversation integration:
+Home Assistant — Apfel AI integration (conversation + ai_task) — RECOMMENDED:
+
+  Base URL:  http://$lan_ip:$PORT/v1
+  API Key:   $TOKEN
+  Model:     apple-foundationmodel
+
+Install the integration once:
+  1. HACS → Integrations → ⋮ → Custom repositories
+       URL: https://github.com/FI-153/apfel-home-assistant-integration
+       Category: Integration
+  2. Install "Apfel AI", restart Home Assistant
+  3. Settings → Devices & services → Add → Apfel AI → paste the values above
+  4. (optional) Select "Home Assistant" (Assist) under LLM API for device control
+
+Home Assistant — Extended OpenAI Conversation integration (legacy, conversation only):
 
   Base URL:  http://$lan_ip:$PORT/v1
   API Key:   $TOKEN

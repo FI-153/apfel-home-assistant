@@ -36,8 +36,11 @@ class ApfelHomeAssistant < Formula
       Then:
         brew services start apfel-home-assistant
 
-      `setup` prints the Base URL, API Key, and Model to paste into Home Assistant's
-      "OpenAI Extended Conversation" integration.
+      `setup` prints the values to paste into Home Assistant.
+      Recommended: "Apfel AI" integration (HACS custom repo) — conversation + AI Task.
+      Legacy: "OpenAI Extended Conversation" integration — conversation only.
+
+      Details: apfel-home-assistant show-config
     EOS
   end
 
