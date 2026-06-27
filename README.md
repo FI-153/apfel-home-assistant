@@ -20,8 +20,8 @@ The model runs fully on-device through Apple's
 no network calls leave your Mac, and there are no usage limits.
 
 > [!NOTE]
-> Want voice control too? You can use your Mac's on-device speech-to-text model as the STT
-> stage of a Home Assistant voice pipeline. See [wyoming-apple-stt](https://github.com/FI-153/wyoming-apple-stt) to integrate it.
+> You can also use your Mac's on-device speech-to-text model as the STT stage of a Home Assistant voice pipeline.
+> See [wyoming-apple-stt](https://github.com/FI-153/wyoming-apple-stt) to integrate it.
 
 ## Examples
 |   |   |   |
