@@ -20,8 +20,14 @@ The model runs fully on-device through Apple's
 no network calls leave your Mac, and there are no usage limits.
 
 > [!NOTE]
-> The server runs with apfel's `--permissive` flag so Apple's content guardrails are relaxed —
-> smart-home commands and routine household prompts are less likely to be refused.
+> Want voice control too? You can use your Mac's on-device speech-to-text model as the STT
+> stage of a Home Assistant voice pipeline. See [wyoming-apple-stt](https://github.com/FI-153/wyoming-apple-stt) to integrate it.
+
+## Examples
+|   |   |   |
+|:-:|:-:|:-:|
+| <img width="300" alt="example1" src="https://github.com/user-attachments/assets/6ed35be2-ae14-4436-a214-38f3ff097514" /> | <img width="300" alt="example2" src="https://github.com/user-attachments/assets/11d4ae41-528d-451f-a95e-3170ab57ed8d" /> | <img width="300" alt="example3" src="https://github.com/user-attachments/assets/c037124e-b53a-48df-b9d5-a00db50cac06" /> |
+| <img width="300" alt="example4" src="https://github.com/user-attachments/assets/c3b77e4b-31fd-4371-ad0e-6a174efd1b31" /> | <img width="300" alt="example5" src="https://github.com/user-attachments/assets/a619d47a-1c3f-4ee7-bff6-9129512badbb" /> | <img width="300" alt="example5" src="https://github.com/user-attachments/assets/f17de49f-7018-4e3f-b111-d5531682ee1c" /> |
 
 ## Install (Homebrew)
 
