@@ -37,8 +37,8 @@ class ApfelHomeAssistant < Formula
         brew services start apfel-home-assistant
 
       `setup` prints the values to paste into Home Assistant.
-      Recommended: "Apfel AI" integration (HACS custom repo) — conversation + AI Task.
-      Legacy: "OpenAI Extended Conversation" integration — conversation only.
+      Add the "Extended OpenAI Conversation" integration via
+      Settings -> Devices & services -> Add integration.
 
       Details: apfel-home-assistant show-config
     EOS
