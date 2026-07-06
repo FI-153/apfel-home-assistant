@@ -97,6 +97,7 @@ Logs live at `$(brew --prefix)/var/log/apfel-home-assistant.log`.
 ```bash
 brew services stop apfel-home-assistant
 brew uninstall apfel-home-assistant
+rm "$(brew --prefix)/etc/apfel-home-assistant.conf"   # removes the config incl. the API token
 ```
 
 ## Built with AI

@@ -12,15 +12,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build & Run
 
-TODO — build, run, and install commands will be added once the wrapper implementation and Homebrew formula are scaffolded.
+Nothing to compile — everything is bash and runs in place. `bin/apfel-home-assistant` is the
+user-facing CLI:
+
+- `apfel-home-assistant setup` — pick a free port, mint a token, write the conf, print the HA block.
+- `apfel-home-assistant show-config` — reprint the Home Assistant integration block.
+- `apfel-home-assistant rotate-token` — mint a fresh API token.
+
+The `Makefile` wraps the dev/release chores:
+
+- `make help` — list targets (default).
+- `make test` — run `test/smoke.sh` against the working tree.
+- `make tarball` — build `dist/apfel-home-assistant-<version>.tar.gz` from HEAD.
+- `make sha256` — print the tarball's sha256 (builds it first).
+- `make clean` — remove `dist/`.
+
+Local install is via the Homebrew tap:
+
+```bash
+brew tap FI-153/tap
+brew install apfel-home-assistant
+```
 
 ### Testing
 
-TODO — testing approach to be decided.
+`make test` runs `test/smoke.sh` — an end-to-end check of the CLI and launcher (setup, refuse
+overwrite, `--force`, show-config, rotate-token, launcher rejects missing conf). It needs neither
+Homebrew nor apfel: it uses `APFEL_HA_CONF` to point at a temp conf and stops at the point the
+launcher would `exec apfel`. CI runs the same script via `.github/workflows/test.yml` on pushes to
+`develop`/`main` and on pull requests, and again inside the release pipeline before publishing.
 
 ### Linting
 
-TODO — linting tools (e.g. `shellcheck` for scripts, `brew audit --strict` for the formula) to be added.
+Run `shellcheck` on the three shell scripts: `bin/apfel-home-assistant`,
+`libexec/apfel-home-assistant-run`, and `test/smoke.sh`. `brew audit --strict` runs in the release
+pipeline against the rendered formula.
 
 ## Requirements
 
@@ -30,11 +56,36 @@ TODO — linting tools (e.g. `shellcheck` for scripts, `brew audit --strict` for
 
 ## Architecture
 
-TODO — high-level architecture to be written once the wrapper design is finalized. Expected shape: a thin launcher that starts `apfel --serve`, exposes the OpenAI-compatible endpoint on a stable host/port, and ships Home-Assistant-ready configuration (e.g. an `openai_conversation` integration snippet or a custom component). The Homebrew formula will declare apfel as a dependency and install the launcher plus a `brew services` plist.
+The wrapper is a thin layer between `brew services` and apfel:
+
+1. `bin/apfel-home-assistant` (`setup`) writes the conf at
+   `$(brew --prefix)/etc/apfel-home-assistant.conf` (`HOST`/`PORT`/`TOKEN`, mode 0600).
+2. `brew services` runs the launcher `libexec/apfel-home-assistant-run` (wired up by the formula's
+   `service do` block, with `APFEL_HA_CONF` and `PATH` set).
+3. The launcher sources the conf, exports `APFEL_HOST` / `APFEL_PORT` / `APFEL_TOKEN`, and
+   `exec`s `apfel --serve --permissive`, exposing the OpenAI-compatible endpoint on the configured
+   host/port.
+4. Home Assistant talks to that endpoint through the **Extended OpenAI Conversation** integration
+   (Base URL `http://<mac-ip>:<port>/v1`, the minted token as API key, model
+   `apple-foundationmodel`).
+
+Distribution is a Homebrew formula rendered from `packaging/formula.rb.template` (it declares
+`apfel` as a dependency and installs the CLI, launcher, and a `brew services` definition). Releases
+are tag-driven: pushing a `v*` tag runs `.github/workflows/release.yml`, which verifies the tag is
+on `main`, smoke-tests, builds the tarball, renders the formula (filling in URL + SHA256), runs
+`brew audit --strict`, creates the GitHub release, and pushes the formula to the
+`FI-153/homebrew-tap`.
 
 ## Key Patterns
 
-TODO — project-specific conventions will be added as the codebase grows.
+- Bash scripts use `set -euo pipefail` and must stay bash 3.2 compatible (macOS system bash).
+- The conf is a sourceable `KEY=value` file; secrets are written with mode `0600`.
+- When not sourcing the conf, values are parsed with `awk` (e.g. reading `TOKEN` in `setup`,
+  rewriting it in `rotate-token`).
+- The Home Assistant integration name is exactly **Extended OpenAI Conversation**, and the model id
+  is `apple-foundationmodel`.
+- Releases are tag-driven; the formula is a template (`packaging/formula.rb.template`) rendered by CI,
+  never hand-edited in the tap.
 
 ## Release Process
 

@@ -48,7 +48,7 @@ class ApfelHomeAssistant < Formula
     run [opt_libexec/"apfel-home-assistant-run"]
     environment_variables APFEL_HA_CONF: etc/"apfel-home-assistant.conf",
                           PATH:          "#{HOMEBREW_PREFIX}/bin:/usr/bin:/bin"
-    keep_alive true
+    keep_alive crashed: true
     log_path var/"log/apfel-home-assistant.log"
     error_log_path var/"log/apfel-home-assistant.log"
   end
@@ -57,5 +57,11 @@ class ApfelHomeAssistant < Formula
     assert_match "Usage: apfel-home-assistant",
                  shell_output("#{bin}/apfel-home-assistant --help")
     assert_predicate libexec/"apfel-home-assistant-run", :executable?
+
+    ENV["APFEL_HA_CONF"] = testpath/"apfel-home-assistant.conf"
+    system bin/"apfel-home-assistant", "setup"
+    assert_match(/^TOKEN=[0-9a-f]{64}$/, (testpath/"apfel-home-assistant.conf").read)
+    assert_match "apple-foundationmodel",
+                 shell_output("#{bin}/apfel-home-assistant show-config")
   end
 end
