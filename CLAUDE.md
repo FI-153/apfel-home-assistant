@@ -45,8 +45,10 @@ launcher would `exec apfel`. CI runs the same script via `.github/workflows/test
 ### Linting
 
 Run `shellcheck` on the three shell scripts: `bin/apfel-home-assistant`,
-`libexec/apfel-home-assistant-run`, and `test/smoke.sh`. `brew audit --strict` runs in the release
-pipeline against the rendered formula.
+`libexec/apfel-home-assistant-run`, and `test/smoke.sh`. CI enforces both linters on every push
+and pull request: `.github/workflows/test.yml` runs shellcheck and `brew audit --strict` against
+the template rendered with placeholder values; the release pipeline audits again with the real
+URL and sha256 before publishing.
 
 ## Requirements
 

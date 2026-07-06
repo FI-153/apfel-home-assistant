@@ -8,12 +8,35 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Shellcheck
+        run: shellcheck bin/apfel-home-assistant libexec/apfel-home-assistant-run test/smoke.sh
+
   test:
     name: Smoke test
     runs-on: macos-26
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Smoke test
         run: ./test/smoke.sh
+
+      - name: Audit formula template
+        run: |
+          set -euo pipefail
+          # Render with placeholder URL/SHA256 and stage inside a local tap so
+          # `brew audit` accepts it — same trick as the release pipeline, which
+          # audits again with the real values before publishing.
+          TAP_DIR="$(brew --repository)/Library/Taps/fi-153/homebrew-ci-audit"
+          mkdir -p "${TAP_DIR}/Formula"
+          sed -e "s|{{URL}}|https://github.com/FI-153/apfel-home-assistant/releases/download/v0.0.0/apfel-home-assistant-0.0.0.tar.gz|" \
+              -e "s|{{SHA256}}|0000000000000000000000000000000000000000000000000000000000000000|" \
+              packaging/formula.rb.template > "${TAP_DIR}/Formula/apfel-home-assistant.rb"
+          brew audit --strict --formula fi-153/ci-audit/apfel-home-assistant
