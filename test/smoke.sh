@@ -47,6 +47,31 @@ BEFORE="$(token_of "$APFEL_HA_CONF")"
 AFTER="$(token_of "$APFEL_HA_CONF")"
 [[ "$BEFORE" != "$AFTER" ]]
 
+echo "== launcher execs apfel with config"
+mkdir -p "$TMP/bin"
+export APFEL_STUB_OUT="$TMP/apfel-args"
+cat >"$TMP/bin/apfel" <<'STUB'
+#!/bin/bash
+{
+  echo "ARGS=$*"
+  echo "HOST=$APFEL_HOST"
+  echo "PORT=$APFEL_PORT"
+  echo "TOKEN=$APFEL_TOKEN"
+} >"$APFEL_STUB_OUT"
+STUB
+chmod +x "$TMP/bin/apfel"
+
+PATH="$TMP/bin:$PATH" "$REPO_ROOT/libexec/apfel-home-assistant-run"
+
+args_of() { awk -F= '/^ARGS=/{print $2}' "$1"; }
+host_of() { awk -F= '/^HOST=/{print $2}' "$1"; }
+port_of() { awk -F= '/^PORT=/{print $2}' "$1"; }
+
+[[ "$(args_of "$APFEL_STUB_OUT")" = "--serve --permissive" ]]
+[[ "$(host_of "$APFEL_STUB_OUT")" = "$(host_of "$APFEL_HA_CONF")" ]]
+[[ "$(port_of "$APFEL_STUB_OUT")" = "$(port_of "$APFEL_HA_CONF")" ]]
+[[ "$(token_of "$APFEL_STUB_OUT")" = "$(token_of "$APFEL_HA_CONF")" ]]
+
 echo "== launcher rejects missing conf"
 rm "$APFEL_HA_CONF"
 if "$REPO_ROOT/libexec/apfel-home-assistant-run" 2>/dev/null; then
