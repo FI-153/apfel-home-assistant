@@ -26,8 +26,11 @@ require_conf() {
 }
 
 get_lan_ip() {
-  local ip
-  ip="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
+  local ip iface
+  iface="$(route -n get default 2>/dev/null | awk '/interface:/{print $2}')"
+  ip=""
+  [[ -n "$iface" ]] && ip="$(ipconfig getifaddr "$iface" 2>/dev/null || true)"
+  [[ -z "$ip" ]] && ip="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
   [[ -z "$ip" ]] && ip="<your-mac-lan-ip>"
   echo "$ip"
 }
@@ -63,6 +66,13 @@ port_is_free() {
   ! lsof -iTCP:"$port" -sTCP:LISTEN -nP -t >/dev/null 2>&1
 }
 
+# True only if the LISTEN process on $port is apfel itself. Fails closed:
+# any parse hiccup yields no match, so grep -q returns non-zero ("not ours").
+port_is_ours() {
+  local port="$1"
+  lsof -iTCP:"$port" -sTCP:LISTEN -nP 2>/dev/null | awk 'NR>1 {print $1}' | grep -q '^apfel'
+}
+
 pick_port() {
   for p in 11434 11435 11436 11437; do
     if port_is_free "$p"; then
@@ -93,13 +103,25 @@ cmd_setup() {
     fi
   fi
 
-  local port
-  if ! port="$(pick_port)"; then
+  local existing_port="" existing_host=""
+  if [[ -f "$CONF" ]]; then
+    existing_port="$(awk -F= '/^PORT=/{print $2}' "$CONF")"
+    existing_host="$(awk -F= '/^HOST=/{print $2}' "$CONF")"
+  fi
+
+  local port=""
+  if [[ -n "$existing_port" ]] && { port_is_free "$existing_port" || port_is_ours "$existing_port"; }; then
+    port="$existing_port"
+    echo "→ Keeping port: $port"
+  elif ! port="$(pick_port)"; then
     echo "apfel-home-assistant: ports 11434–11437 are all in use." >&2
     echo "Edit PORT in $CONF manually, then run: apfel-home-assistant show-config" >&2
     return 1
+  else
+    echo "→ Selected port: $port"
   fi
-  echo "→ Selected port: $port"
+
+  local host="${existing_host:-0.0.0.0}"
 
   echo "→ Generating token..."
   local token
@@ -113,7 +135,7 @@ cmd_setup() {
 # Normal workflow: \`apfel-home-assistant setup\` / \`rotate-token\`.
 # Restart after editing: \`brew services restart apfel-home-assistant\`.
 
-HOST=0.0.0.0
+HOST=$host
 PORT=$port
 TOKEN=$token
 EOF
@@ -125,10 +147,10 @@ EOF
 → Wrote $CONF (mode 0600)
 
 Next steps:
-  1. Start the server:
-       brew services start apfel-home-assistant
+  1. Start (or restart) the server:
+       brew services restart apfel-home-assistant
 
-  2. In Home Assistant, add the "OpenAI Extended Conversation" integration with:
+  2. In Home Assistant, add the "Extended OpenAI Conversation" integration with:
 
     Base URL:  http://$lan_ip:$port/v1
     API Key:   $token
